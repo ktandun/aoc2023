@@ -66,10 +66,10 @@ defmodule Day03 do
     end)
     |> Enum.filter(fn numbers -> length(numbers) == 2 end)
     |> Enum.map(fn numbers ->
-        {_, val1} = List.first(numbers)
-        {_, val2} = List.last(numbers)
+      {_, val1} = List.first(numbers)
+      {_, val2} = List.last(numbers)
 
-        val1 * val2
+      val1 * val2
     end)
     |> Enum.sum()
   end
@@ -151,20 +151,7 @@ defmodule Day03 do
     {:ok, input_one} =
       File.read(Path.join([System.get_env("HOME"), "advent_of_code_inputs", "day03.part1.txt"]))
 
-    example_input = """
-    467..114..
-    ...*......
-    ..35..633.
-    ......#...
-    617*......
-    .....+.58.
-    ..592.....
-    ......755.
-    ...$.*....
-    .664.598..
-    """
-
-    #part_one(input_one)
+    # part_one(input_one)
     part_two(input_one)
   end
 end
