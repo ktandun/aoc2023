@@ -44,15 +44,25 @@ defmodule Day10 do
   end
 
   def get_connected_pipes(maze_map, height, width, row, col) do
-    [{row + 1, col, :north}, {row - 1, col, :south}, {row, col + 1, :west}, {row, col - 1, :east}]
-    |> Stream.filter(fn {y, x, connectable_direction} ->
+    connectable_direction =
+      maze_map[row][col]
+      |> tiles_to_direction()
+
+    [
+      {row + 1, col, :south, :north},
+      {row - 1, col, :north, :south},
+      {row, col + 1, :east, :west},
+      {row, col - 1, :west, :east}
+    ]
+    |> Stream.filter(fn {y, x, direction, from_direction} ->
       0 <= y && y <= height &&
         0 <= x && x <= width &&
+        direction in connectable_direction &&
         maze_map[y][x]
         |> tiles_to_direction()
-        |> Enum.member?(connectable_direction)
+        |> Enum.member?(from_direction)
     end)
-    |> Enum.map(fn {y, x, _} -> {y, x} end)
+    |> Enum.map(fn {y, x, _, _} -> {y, x} end)
   end
 
   def get_connected_dots(dimensions, row, col) do
@@ -146,34 +156,38 @@ defmodule Day10 do
   def reverse(:out), do: :in
   def reverse(:in), do: :out
 
-  def calculate_outside_nodes(row, line, connected_pipes_coords) do
+  def calculate_inside_nodes(row, line, connected_pipes_coords) do
     max = line |> Map.keys() |> Enum.max()
 
-    {_status, count} =
+    {_status, count, _prev_corner} =
       0..max
-      |> Enum.reduce({:out, 0}, fn col, acc ->
-        {status, count} = acc
-        tile = line[col]
+      |> Enum.reduce({:out, 0, nil}, fn col, acc ->
+        {status, count, prev_corner} = acc
+        tile = if line[col] == "S", do: "J", else: line[col]
 
-        status =
-          case tile do
-            "." -> status
-            "-" -> status
-            "|" -> reverse(status)
-            "J" -> reverse(status)
-            "L" -> reverse(status)
-            "7" -> status
-            "S" -> status
-            "F" -> status
+        part_of_maze = MapSet.member?(connected_pipes_coords, {row, col})
+
+        {status, prev_corner} =
+          case {part_of_maze, tile, prev_corner} do
+            {false, _, _} -> {status, prev_corner}
+            {true, ".", _} -> {status, prev_corner}
+            {true, "-", _} -> {status, prev_corner}
+            {true, "|", _} -> {reverse(status), prev_corner}
+            {true, "7", "L"} -> {reverse(status), nil}
+            {true, "J", "F"} -> {reverse(status), nil}
+            {true, "J", _} -> {status, "J"}
+            {true, "L", _} -> {status, "L"}
+            {true, "7", _} -> {status, "7"}
+            {true, "F", _} -> {status, "F"}
           end
 
         count =
-          cond do
-            not MapSet.member?(connected_pipes_coords, {row, col}) && status == :in -> count + 1
-            true -> count
+          case {part_of_maze, status} do
+            {false, :in} -> count + 1
+            _ -> count
           end
 
-        {status, count}
+        {status, count, prev_corner}
       end)
 
     count
@@ -208,13 +222,11 @@ defmodule Day10 do
       maze_map
       |> find_connected_nodes([{start_row, start_col}])
       |> Map.keys()
+      |> Enum.sort()
       |> MapSet.new()
 
-    connected_pipes_coords
-    |> MapSet.filter(fn {y, _x} -> y == 0 end)
-
     maze_map
-    |> Enum.map(fn {k, v} -> calculate_outside_nodes(k, v, connected_pipes_coords) end)
+    |> Enum.map(fn {k, v} -> calculate_inside_nodes(k, v, connected_pipes_coords) end)
     |> Enum.sum()
   end
 
@@ -227,21 +239,33 @@ defmodule Day10 do
 
   def read_input(false) do
     """
-    .F----7F7F7F7F-7....
-    .|F--7||||||||FJ....
-    .||.FJ||||||||L7....
-    FJL7L7LJLJ||LJ.L-7..
-    L--J.L7...LJS7F-7L7.
-    ....F-J..F7FJ|L7L7L7
-    ....L7.F7||L7|.L7L7|
-    .....|FJLJ|FJ|F7|.LJ
-    ....FJL-7.||.||||...
-    ....L---J.LJ.LJLJ...
+    FF7FSF7F7F7F7F7F---7
+    L|LJ||||||||||||F--J
+    FL-7LJLJ||||||LJL-77
+    F--JF--7||LJLJ7F7FJ-
+    L---JF-JLJ.||-FJLJJ7
+    |F|F-JF---7F7-L7L|7|
+    |FFJF7L7F-JF7|JL---7
+    7-L-JL7||F7|L7F-7F7|
+    L.L7LFJ|||||FJL7||LJ
+    L7JLJL-JLJLJL--JLJ.L
     """
+  end
+
+  def to_box_chars(input) do
+    input
+    |> String.replace("F", "┌")
+    |> String.replace("L", "└")
+    |> String.replace("J", "┘")
+    |> String.replace("7", "┐")
+    |> String.replace("-", "─")
+    |> String.replace("|", "│")
+    |> String.split("\n", trim: true)
   end
 
   def solve() do
     input = read_input(true)
+    input |> to_box_chars() |> IO.inspect()
 
     p1(input) |> IO.inspect()
     p2(input) |> IO.inspect()
